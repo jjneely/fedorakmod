@@ -1,0 +1,5 @@
+Plugin for Yum to handle kernel modules as described by the Fedora Extras
+packaging standards.
+
+    http://www.fedoraproject.org/wiki/Extras/KernelModuleProposal
+
