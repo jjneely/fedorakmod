@@ -21,9 +21,9 @@
 # Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 import rpm
-import rpmUtils
-import packages
 
+from yum import rpmUtils
+from yum import packages
 from yum.plugins import TYPE_CORE, PluginYumExit
 # from yum.packages import YumInstalledPackage
 
@@ -69,7 +69,7 @@ def handleKernelModule(c, txmbr):
                 # same name.  "Upgrade" this module instead of install
                 po = packages.YumInstalledPackage(hdr)
                 tsInfo.addErase(po)
-                c.info(4, 'Removing kernel module %s upgraded to %s' %
+                c.info(2, 'Removing kernel module %s upgraded to %s' %
                        (po, txmbr.po))
                 break
 
@@ -79,6 +79,7 @@ def init_hook(c):
 
     
 def postresolve_hook(c):
+
     for te in c.getTsInfo().getMembers():
         if te.ts_state not in ('i', 'u'):
             continue
