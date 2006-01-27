@@ -30,21 +30,14 @@ from yum.plugins import TYPE_CORE, PluginYumExit
 requires_api_version = '2.1'
 plugin_type = (TYPE_CORE,)
 
-kernelsProvides = ["kernel-%s" % a for a in rpmUtils.arch.arches.keys()]
+kernelProvides = ["kernel-%s" % a for a in rpmUtils.arch.arches.keys()]
 
-def getKernelReqs(hdr):
+def getKernelReqs(po):
     """Pass in a package header.  This function will return a list of
        tuples (name, flags, ver) representing any kernel requires."""
        
-    # All po types don't support the same interface...fake it
-    # XXX: What about using po.returnPrco() here?  What POs messed that up?
-    reqs = []
-    names = hdr[rpm.RPMTAG_REQUIRENAME]
-    flags = hdr[rpm.RPMTAG_REQUIREFLAGS]
-    ver =   hdr[rpm.RPMTAG_REQUIREVERSION]
-    if names is not None:
-        reqs = zip(names, flags, ver)
-    return filter(lambda r: r[0] in kernelPovides, reqs)
+    reqs = po.returnPrco('requires')
+    return filter(lambda r: r[0] in kernelProvides, reqs)
 
 
 def handleKernelModule(c, txmbr):
@@ -56,18 +49,19 @@ def handleKernelModule(c, txmbr):
     rpmdb = c.getRpmDB()
     tsInfo = c.getTsInfo()
     
-    kernelReqs = getKernelReqs(txmbr.po.returnLocalHeader())
+    kernelReqs = getKernelReqs(txmbr.po)
     instPkgs = rpmdb.returnTupleByKeyword(name=txmbr.po.name)
     for pkg in instPkgs:
-        hdr = rpmdb.returnHeaderByTuple(pkg)[0] # XXX: name only?
-        instKernelReqs = getKernelReqs(hdr)
+        print "Working on: %s" % str(pkg)
+        hdr = rpmdb.returnHeaderByTuple(pkg)[0] # Assume no dup NAEVRs
+        po = packages.YumInstalledPackage(hdr)
+        instKernelReqs = getKernelReqs(po)
 
         for r in kernelReqs:
             if r in instKernelReqs:
                 # we know that an incoming kernel module requires the
                 # same kernel as an already installed moulde of the
                 # same name.  "Upgrade" this module instead of install
-                po = packages.YumInstalledPackage(hdr)
                 tsInfo.addErase(po)
                 c.info(2, 'Removing kernel module %s upgraded to %s' %
                        (po, txmbr.po))
