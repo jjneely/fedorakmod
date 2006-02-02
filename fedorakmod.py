@@ -20,12 +20,11 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
-# Depends on: 'kernel-module' as installonly package
-
 import rpm
 
 from yum import rpmUtils
 from yum import packages
+from yum.constants import TS_INSTALL
 from yum.plugins import TYPE_CORE, PluginYumExit
 
 requires_api_version = '2.1'
@@ -73,14 +72,11 @@ def handleKernelModule(c, txmbr):
     
     moduleHeader = txmbr.po.returnLocalHeader()
     kernelReqs = getKernelReqs(moduleHeader)
-    print "New Package Reqs: %s" % str(kernelReqs)
     instPkgs = rpmdb.returnTupleByKeyword(name=txmbr.po.name)
     for pkg in instPkgs:
-        print "Working on: %s" % str(pkg)
         hdr = rpmdb.returnHeaderByTuple(pkg)[0] # Assume no dup NAEVRs
         po = packages.YumInstalledPackage(hdr)
         instKernelReqs = getKernelReqs(hdr)
-        print "  Has Reqs: %s" % str(instKernelReqs)
 
         for r in kernelReqs:
             if r in instKernelReqs:
@@ -93,6 +89,14 @@ def handleKernelModule(c, txmbr):
                 break
 
 
+def tsCheck(te):
+    "Make sure this transaction element is sane."
+
+    if te.ts_state == 'u':
+        te.ts_state = 'i'
+        te.output_state = TS_INSTALL
+
+    
 def init_hook(c):
     c.info(3, "Loading Fedora Extras kernel module support.")
 
@@ -104,5 +108,6 @@ def postresolve_hook(c):
             continue
         if "kernel-module" in te.po.getProvidesNames():
             c.info(4, "Handling kernel module: %s" % te.name)
+            tsCheck(te)
             handleKernelModule(c, te)
             
