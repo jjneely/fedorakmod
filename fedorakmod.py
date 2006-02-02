@@ -20,24 +20,46 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
+# Depends on: 'kernel-module' as installonly package
+
 import rpm
 
 from yum import rpmUtils
 from yum import packages
 from yum.plugins import TYPE_CORE, PluginYumExit
-# from yum.packages import YumInstalledPackage
 
 requires_api_version = '2.1'
 plugin_type = (TYPE_CORE,)
 
 kernelProvides = ["kernel-%s" % a for a in rpmUtils.arch.arches.keys()]
+        
 
-def getKernelReqs(po):
-    """Pass in a package header.  This function will return a list of
-       tuples (name, flags, ver) representing any kernel requires."""
-       
-    reqs = po.returnPrco('requires')
+def getKernelReqs(hdr):
+    reqs = []
+    names = hdr[rpm.RPMTAG_REQUIRENAME]
+    flags = hdr[rpm.RPMTAG_REQUIREFLAGS]
+    ver =   hdr[rpm.RPMTAG_REQUIREVERSION]
+    if names is not None:
+        reqs = zip(names, flags, ver)
     return filter(lambda r: r[0] in kernelProvides, reqs)
+
+
+#def getKernelReqs(po):
+#    """Pass in a package header.  This function will return a list of
+#       tuples (name, flags, ver) representing any kernel requires."""
+#      
+#    # ARG! YumInstalledPackage doesn't have the prco interface
+#    # YumAvailablePackage doesn't have the tagByName() interface
+#    # I cannot make this function generic using the PO non-APIs
+#      
+#    # reqs = po.returnPrco('requires') # *sigh*
+#    reqs = []
+#    names = po.tagByName("requirename")
+#    flags = po.tagByName("requireflags")
+#    ver   = po.tagByName("requireversion")
+#    if names is not None:
+#        reqs = zip(names, flags, ver)
+#    return filter(lambda r: r[0] in kernelProvides, reqs)
 
 
 def handleKernelModule(c, txmbr):
@@ -49,13 +71,16 @@ def handleKernelModule(c, txmbr):
     rpmdb = c.getRpmDB()
     tsInfo = c.getTsInfo()
     
-    kernelReqs = getKernelReqs(txmbr.po)
+    moduleHeader = txmbr.po.returnLocalHeader()
+    kernelReqs = getKernelReqs(moduleHeader)
+    print "New Package Reqs: %s" % str(kernelReqs)
     instPkgs = rpmdb.returnTupleByKeyword(name=txmbr.po.name)
     for pkg in instPkgs:
         print "Working on: %s" % str(pkg)
         hdr = rpmdb.returnHeaderByTuple(pkg)[0] # Assume no dup NAEVRs
         po = packages.YumInstalledPackage(hdr)
-        instKernelReqs = getKernelReqs(po)
+        instKernelReqs = getKernelReqs(hdr)
+        print "  Has Reqs: %s" % str(instKernelReqs)
 
         for r in kernelReqs:
             if r in instKernelReqs:
