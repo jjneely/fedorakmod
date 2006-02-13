@@ -27,7 +27,7 @@ from yum import packages
 from yum.constants import TS_INSTALL
 from yum.plugins import TYPE_CORE, PluginYumExit
 
-requires_api_version = '2.1'
+requires_api_version = '2.2'
 plugin_type = (TYPE_CORE,)
 
 kernelProvides = ["kernel-%s" % a for a in rpmUtils.arch.arches.keys()]
