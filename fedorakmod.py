@@ -76,6 +76,39 @@ def populatePrco(po, hdr):
     return po
 
 
+def package(c, tuple):
+    rpmdb = c.getRpmDB()
+
+    # XXX: When RPM leaves dup NEVRA's??
+    hdr = rpmdb.returnHeaderByTuple(tuple)[0]
+    po = packages.YumInstalledPackage(hdr)
+    populatePrco(po, hdr)
+
+    return po
+
+    
+def whatProvides(c, list):
+    """Return a list of POs of installed kernels."""
+
+    bag = {}
+    
+    rpmdb = c.getRpmDB()
+    for i in list:
+        list = rpmdb.whatProvides(i, None, None)
+        for p in list:
+            bag[p] = package(c, p)
+
+    return bag
+
+
+def getInstalledKernels(c):
+    return whatProvides(c, kernelProvides)
+
+
+def getInstalledModules(c):
+    return whatProvides(c, ["kernel-modules"])
+
+
 def getKernelReqs(po):
     """Pass in a package header.  This function will return a list of
        tuples (name, flags, ver) representing any kernel requires."""
@@ -84,49 +117,32 @@ def getKernelReqs(po):
     return filter(lambda r: r[0] in kernelProvides, reqs)
 
 
-def getInstalledKernels(c):
-    """Return a list of POs of installed kernels."""
-
-    installedKernels = []
-    rpmdb = c.getRpmDB()
-    
-    for i in kernelProvides:
-        list = rpmdb.whatProvides(i, None, None
-        for p in list:
-            po = packages.YumInstalledPackage(hdr)
-            populatePrco(po, hdr)
-            installedKernels.append(po)
-
-    return installedKernels
-
-
-def installKernelModule(c, modpo):
+def installKernelModules(c, newKernelModules):
     """Figure out what special magic needs to be done to install/upgrade
        this kernel module.  This doesn't actually initiate an install
        as the module is already in the package sack to be applied."""
 
-    c.info(4, "Installing kernel module: %s" % modpo.name)
+    for modpo in newKernelModules.values():
+        c.info(4, "Installing kernel module: %s" % modpo.name)
 
-    rpmdb = c.getRpmDB()
-    tsInfo = c.getTsInfo()
+        rpmdb = c.getRpmDB()
+        tsInfo = c.getTsInfo()
     
-    kernelReqs = getKernelReqs(modpo)
-    instPkgs = rpmdb.returnTupleByKeyword(name=modpo.name)
-    for pkg in instPkgs:
-        hdr = rpmdb.returnHeaderByTuple(pkg)[0] # Assume no dup NAEVRs
-        po = packages.YumInstalledPackage(hdr)
-        populatePrco(po, hdr)
-        instKernelReqs = getKernelReqs(po)
+        kernelReqs = getKernelReqs(modpo)
+        instPkgs = rpmdb.returnTupleByKeyword(name=modpo.name)
+        for pkg in instPkgs:
+            po = package(c, pkg)
+            instKernelReqs = getKernelReqs(po)
 
-        for r in kernelReqs:
-            if r in instKernelReqs:
-                # we know that an incoming kernel module requires the
-                # same kernel as an already installed moulde of the
-                # same name.  "Upgrade" this module instead of install.
-                tsInfo.addErase(po)
-                c.info(2, 'Removing kernel module %s upgraded to %s' %
-                       (po, modpo))
-                break
+            for r in kernelReqs:
+                if r in instKernelReqs:
+                    # we know that an incoming kernel module requires the
+                    # same kernel as an already installed moulde of the
+                    # same name.  "Upgrade" this module instead of install.
+                    tsInfo.addErase(po)
+                    c.info(2, 'Removing kernel module %s upgraded to %s' %
+                           (po, modpo))
+                    break
 
 
 def pinKernels(c, kernels, kernel_modules):
@@ -147,8 +163,8 @@ def init_hook(c):
     
 def postresolve_hook(c):
 
-    newKernelModules = []
-    newKernels = []
+    newKernelModules = {}
+    newKernels = {}
 
     installedKernels = getInstalledKernels(c)
 
@@ -157,16 +173,15 @@ def postresolve_hook(c):
             continue
         if "kernel-modules" in te.po.getProvidesNames():
             tsCheck(te)  # We do this here as I can't get the TE from the PO
-            newKernelModules.append(te.po)
+            newKernelModules[te.po.returnPackageTuple()] = te.po
         if kernelProvides.intersection(te.po.getProvidesNames()) is not []:
             # We have a kernel package
-            newKernels.append(te.po)
+            newKernels[te.po.returnPackageTuple()] = te.po
 
     # Pin kernels
     pinKernels(c, newKernels, newKernelModules)
 
     # Upgrade/Install kernel modules
-    for po in newKernelModules:
-        installKernelModule(c, po)
+    installKernelModules(c, newKernelModules)
            
 # vim:ts=4:expandtab 
