@@ -21,6 +21,7 @@
 # Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 import rpm
+from sets import Set
 
 from rpmUtils.miscutils import *
 from yum import packages
@@ -30,7 +31,7 @@ from yum.plugins import TYPE_CORE, PluginYumExit
 requires_api_version = '2.4'
 plugin_type = (TYPE_CORE,)
 
-kernelProvides = ["kernel-%s" % a for a in rpmUtils.arch.arches.keys()]
+kernelProvides = Set([ "kernel-%s" % a for a in rpmUtils.arch.arches.keys() ])
         
 
 def flagToString(flags):
@@ -83,11 +84,28 @@ def getKernelReqs(po):
     return filter(lambda r: r[0] in kernelProvides, reqs)
 
 
-def handleKernelModule(c, modpo):
-    """Figure out what special magic needs to be done to install/upgrade
-       this kernel module."""
+def getInstalledKernels(c):
+    """Return a list of POs of installed kernels."""
 
-    # XXX: Lets try to fix this up so we don't need RPM header objects
+    installedKernels = []
+    rpmdb = c.getRpmDB()
+    
+    for i in kernelProvides:
+        list = rpmdb.whatProvides(i, None, None
+        for p in list:
+            po = packages.YumInstalledPackage(hdr)
+            populatePrco(po, hdr)
+            installedKernels.append(po)
+
+    return installedKernels
+
+
+def installKernelModule(c, modpo):
+    """Figure out what special magic needs to be done to install/upgrade
+       this kernel module.  This doesn't actually initiate an install
+       as the module is already in the package sack to be applied."""
+
+    c.info(4, "Installing kernel module: %s" % modpo.name)
 
     rpmdb = c.getRpmDB()
     tsInfo = c.getTsInfo()
@@ -111,6 +129,10 @@ def handleKernelModule(c, modpo):
                 break
 
 
+def pinKernels(c, kernels, kernel_modules):
+    pass
+
+
 def tsCheck(te):
     "Make sure this transaction element is sane."
 
@@ -118,19 +140,33 @@ def tsCheck(te):
         te.ts_state = 'i'
         te.output_state = TS_INSTALL
 
-    
+
 def init_hook(c):
     c.info(3, "Loading Fedora Extras kernel module support.")
 
     
 def postresolve_hook(c):
 
+    newKernelModules = []
+    newKernels = []
+
+    installedKernels = getInstalledKernels(c)
+
     for te in c.getTsInfo().getMembers():
         if te.ts_state not in ('i', 'u'):
             continue
         if "kernel-modules" in te.po.getProvidesNames():
-            c.info(4, "Handling kernel module: %s" % te.name)
-            tsCheck(te)
-            handleKernelModule(c, te.po)
+            tsCheck(te)  # We do this here as I can't get the TE from the PO
+            newKernelModules.append(te.po)
+        if kernelProvides.intersection(te.po.getProvidesNames()) is not []:
+            # We have a kernel package
+            newKernels.append(te.po)
+
+    # Pin kernels
+    pinKernels(c, newKernels, newKernelModules)
+
+    # Upgrade/Install kernel modules
+    for po in newKernelModules:
+        installKernelModule(c, po)
            
 # vim:ts=4:expandtab 
