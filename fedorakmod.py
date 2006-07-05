@@ -94,8 +94,8 @@ def whatProvides(c, list):
     
     rpmdb = c.getRpmDB()
     for i in list:
-        list = rpmdb.whatProvides(i, None, None)
-        for p in list:
+        tuples = rpmdb.whatProvides(i, None, None)
+        for p in tuples:
             bag[p] = package(c, p)
 
     return bag
@@ -109,29 +109,66 @@ def getInstalledModules(c):
     return whatProvides(c, ["kernel-modules"])
 
 
+def searchByName(packageDict, name):
+    """Returns a list of package tuples who's package name matches the
+       given name."""
+
+    list = []
+    for key in packageDict.keys():
+        if key[0] == name:
+            list.append(key)
+
+    return list
+
+
+def getKernelStuffs(po, match):
+      
+    reqs = po.returnPrco(match)
+    return filter(lambda r: r[0] in kernelProvides, reqs)
+
+
+def getKernelProvides(po):
+    """Pass in a package header.  This function will return a list of
+       tuples (name, flags, ver) representing any kernel provides.
+       Assumed that the PO is a kernel package."""
+     
+    return getKernelStuffs(po, "provides")
+
+
 def getKernelReqs(po):
     """Pass in a package header.  This function will return a list of
        tuples (name, flags, ver) representing any kernel requires."""
       
-    reqs = po.returnPrco("requires")
-    return filter(lambda r: r[0] in kernelProvides, reqs)
+    return getKernelStuffs(po, "requires")
 
 
-def installKernelModules(c, newKernelModules):
+def mapNameToKernel(packageDict):
+    # name -> (name, flag, (e,v,r)) where name is 'kernel-<arch>'
+    modnames = {}
+    for key in packageDict.keys():
+        kernelReqs = getKernelReqs(packageDict[key])
+        if modnames.has_key(key[0]):
+            modnames[key[0]].extend(kernelReq)
+        else:
+            modnames[key[0]] = kernelReqs
+
+    return modnames
+
+
+def installKernelModules(c, newModules, installedModules):
     """Figure out what special magic needs to be done to install/upgrade
        this kernel module.  This doesn't actually initiate an install
        as the module is already in the package sack to be applied."""
 
-    for modpo in newKernelModules.values():
-        c.info(4, "Installing kernel module: %s" % modpo.name)
+    tsInfo = c.getTsInfo()
 
-        rpmdb = c.getRpmDB()
-        tsInfo = c.getTsInfo()
+    for modpo in newModules.values():
+        c.info(4, "Installing kernel module: %s" % modpo.name)
     
         kernelReqs = getKernelReqs(modpo)
-        instPkgs = rpmdb.returnTupleByKeyword(name=modpo.name)
+        instPkgs = searchByName(installedModules, modpo.name)
         for pkg in instPkgs:
-            po = package(c, pkg)
+            po = installedModules[pkg]
             instKernelReqs = getKernelReqs(po)
 
             for r in kernelReqs:
@@ -145,8 +182,34 @@ def installKernelModules(c, newKernelModules):
                     break
 
 
-def pinKernels(c, kernels, kernel_modules):
-    pass
+def pinKernels(c, newKernels, newModules, installedModules):
+    """If we are using kernel modules, do not upgrade/install a new 
+       kernel until matching modules are available."""
+    
+    if len(newKernels.keys()) == 0:
+        return
+
+    # name -> (name, flag, (e,v,r)) where name is 'kernel-<arch>'
+    installedMap = mapNameToKernel(installedModules)
+    newMap = mapNameToKernel(newModules)
+
+    for kernel in newKernels.keys():
+        # Each kernel should only provide one kernel-<arch>
+        print "pinKernels(): working on %s" % str(kernel)
+        prov = getKernelProvides(newKernels[kernel])[0]
+
+        for name in installedMap:
+            if prov in installedMap[name]:
+                # matching module already installed
+                continue
+            elif newMap.has_key(name) and prov in newMap[name]:
+                # matching module available
+                continue
+            else:
+                # No matching module for new kernel
+                print "Removing kernel %s from install set" % str(kernel)
+                c.delPackage(newKernels[kernel])
+                del newKernels[kernel]
 
 
 def tsCheck(te):
@@ -163,25 +226,26 @@ def init_hook(c):
     
 def postresolve_hook(c):
 
-    newKernelModules = {}
+    newModules = {}
     newKernels = {}
 
     installedKernels = getInstalledKernels(c)
+    installedModules = getInstalledModules(c)
 
     for te in c.getTsInfo().getMembers():
         if te.ts_state not in ('i', 'u'):
             continue
         if "kernel-modules" in te.po.getProvidesNames():
             tsCheck(te)  # We do this here as I can't get the TE from the PO
-            newKernelModules[te.po.returnPackageTuple()] = te.po
-        if kernelProvides.intersection(te.po.getProvidesNames()) is not []:
+            newModules[te.po.returnPackageTuple()] = te.po
+        if kernelProvides.intersection(te.po.getProvidesNames()) != Set([]):
             # We have a kernel package
             newKernels[te.po.returnPackageTuple()] = te.po
 
     # Pin kernels
-    pinKernels(c, newKernels, newKernelModules)
+    pinKernels(c, newKernels, newModules, installedModules)
 
     # Upgrade/Install kernel modules
-    installKernelModules(c, newKernelModules)
+    installKernelModules(c, newModules, installedModules)
            
 # vim:ts=4:expandtab 
