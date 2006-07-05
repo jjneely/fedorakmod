@@ -189,6 +189,8 @@ def pinKernels(c, newKernels, newModules, installedModules):
     if len(newKernels.keys()) == 0:
         return
 
+    tsInfo = c.getTsInfo()
+
     # name -> (name, flag, (e,v,r)) where name is 'kernel-<arch>'
     installedMap = mapNameToKernel(installedModules)
     newMap = mapNameToKernel(newModules)
@@ -208,7 +210,7 @@ def pinKernels(c, newKernels, newModules, installedModules):
             else:
                 # No matching module for new kernel
                 print "Removing kernel %s from install set" % str(kernel)
-                c.delPackage(newKernels[kernel])
+                tsInfo.remove(kernel)
                 del newKernels[kernel]
 
 
