@@ -197,7 +197,6 @@ def pinKernels(c, newKernels, newModules, installedModules):
 
     for kernel in newKernels.keys():
         # Each kernel should only provide one kernel-<arch>
-        print "pinKernels(): working on %s" % str(kernel)
         prov = getKernelProvides(newKernels[kernel])[0]
 
         for name in installedMap:
@@ -209,7 +208,7 @@ def pinKernels(c, newKernels, newModules, installedModules):
                 continue
             else:
                 # No matching module for new kernel
-                print "Removing kernel %s from install set" % str(kernel)
+                c.info(2, "Removing kernel %s from install set" % str(kernel))
                 tsInfo.remove(kernel)
                 del newKernels[kernel]
 
@@ -245,7 +244,8 @@ def postresolve_hook(c):
             newKernels[te.po.returnPackageTuple()] = te.po
 
     # Pin kernels
-    pinKernels(c, newKernels, newModules, installedModules)
+    if c.confInt('main', 'pinkernels', default=1) is not 0:
+        pinKernels(c, newKernels, newModules, installedModules)
 
     # Upgrade/Install kernel modules
     installKernelModules(c, newModules, installedModules)
