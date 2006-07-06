@@ -64,18 +64,6 @@ def getInstalledModules(c):
     return whatProvides(c, ["kernel-modules"])
 
 
-def searchByName(packageDict, name):
-    """Returns a list of package tuples who's package name matches the
-       given name."""
-
-    list = []
-    for key in packageDict.keys():
-        if key[0] == name:
-            list.append(key)
-
-    return list
-
-
 def getKernelStuffs(po, match):
       
     reqs = po.returnPrco(match)
@@ -121,7 +109,8 @@ def installKernelModules(c, newModules, installedModules):
         c.info(4, "Installing kernel module: %s" % modpo.name)
     
         kernelReqs = getKernelReqs(modpo)
-        instPkgs = searchByName(installedModules, modpo.name)
+        instPkgs = filter(lambda p: p[0] == modpo.name,
+                          installedModules.keys())
         for pkg in instPkgs:
             po = installedModules[pkg]
             instKernelReqs = getKernelReqs(po)
