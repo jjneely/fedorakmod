@@ -188,7 +188,7 @@ def postresolve_hook(c):
             newKernels[te.po.returnPackageTuple()] = te.po
 
     # Pin kernels
-    if c.confInt('main', 'pinkernels', default=1) is not 0:
+    if c.confInt('main', 'pinkernels', default=0) is not 0:
         pinKernels(c, newKernels, newModules, installedModules)
 
     # Upgrade/Install kernel modules
