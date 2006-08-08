@@ -105,9 +105,12 @@ def installKernelModules(c, newModules, installedModules):
 
     tsInfo = c.getTsInfo()
 
-    for modpo in newModules.values():
+    for pktuple in newModules.keys():
+        modpo = newModules[pktuple]
         c.info(4, "Installing kernel module: %s" % modpo.name)
-    
+        te = tsInfo.getMembers(pktuple)
+        tsCheck(te)
+
         kernelReqs = getKernelReqs(modpo)
         instPkgs = filter(lambda p: p[0] == modpo.name,
                           installedModules.keys())
@@ -157,6 +160,35 @@ def pinKernels(c, newKernels, newModules, installedModules):
                 del newKernels[kernel]
 
 
+def sortByName(modules):
+    names = {}
+    for pktuple in modules.keys():
+        prov = modules[pktuple].getProvidesNames()
+        for p in prov:
+            if p.endswith("-kmod"):
+                name = p[:-5]
+                if names.has_key(name):
+                    names[name].append(pktuple)
+                else:
+                    names[name] = [pktuple]
+                break
+
+    return names
+
+
+def availableModules(c, avaModules, newModules, installedModules, 
+                     newKernels, installedKernels):
+
+    for pktuple in avaModules:
+        if installedModules.has_key(pktuple):
+            del avaModules[pktuple]
+        elif newModules.has_key(pktuple):
+            del avaModules[pktuple]
+
+    # Group kmods by name
+    names = sortByName(newModules)
+    
+
 def tsCheck(te):
     "Make sure this transaction element is sane."
 
@@ -171,6 +203,7 @@ def init_hook(c):
     
 def postresolve_hook(c):
 
+    avaModules = {}
     newModules = {}
     newKernels = {}
 
@@ -178,10 +211,11 @@ def postresolve_hook(c):
     installedModules = getInstalledModules(c)
 
     for te in c.getTsInfo().getMembers():
+        if te.ts_state == 'a' and "kernel-modules" in te.po.getProvidesNames():
+            avaModules[te.po.returnPackageTuple()] = te.po
         if te.ts_state not in ('i', 'u'):
             continue
         if "kernel-modules" in te.po.getProvidesNames():
-            tsCheck(te)  # We do this here as I can't get the TE from the PO
             newModules[te.po.returnPackageTuple()] = te.po
         if kernelProvides.intersection(te.po.getProvidesNames()) != Set([]):
             # We have a kernel package
@@ -190,6 +224,10 @@ def postresolve_hook(c):
     # Pin kernels
     if c.confInt('main', 'pinkernels', default=0) is not 0:
         pinKernels(c, newKernels, newModules, installedModules)
+
+    # Install modules for all kernels
+    availableModules(c, avaModules, newModules, installedModules, newKernels,
+                     installedKernels)
 
     # Upgrade/Install kernel modules
     installKernelModules(c, newModules, installedModules)
