@@ -144,18 +144,18 @@ def installKernelModules(c, newModules, installedModules):
                     break
 
 
-def pinKernels(c, newKernels, newModules, installedModules):
+def pinKernels(c, newKernels, modules):
     """If we are using kernel modules, do not upgrade/install a new 
        kernel until matching modules are available."""
     
-    if len(newKernels.keys()) == 0:
+    if len(newKernels) == 0:
         return
 
     tsInfo = c.getTsInfo()
 
-    # name -> (name, flag, (e,v,r)) where name is 'kernel-<arch>'
-    installedMap = mapNameToKernel(installedModules)
-    newMap = mapNameToKernel(newModules)
+    # (name, flag, (e,v,r)) where name is 'kernel-<arch>'
+    table = resolveVersions(newModules + installedModules)
+    names = [ po.name for po in modules if po.name not in locals()['_[1]'] ]
 
     for kernel in newKernels.keys():
         # Each kernel should only provide one kernel-<arch>
@@ -229,12 +229,14 @@ def postresolve_hook(c):
             newKernels.append(te.po)
 
     # Install modules for all kernels
-    moreModules = installAllKmods(c, avaModules, newModules + installedModules,
-                                  newKernels + installedKernels)
-    newModules = newModules = moreModules
+    if c.confInt('main', 'installforallkernels', default=1) != 0:
+        moreModules = installAllKmods(c, avaModules, 
+                                      newModules + installedModules,
+                                      newKernels + installedKernels)
+        newModules = newModules = moreModules
 
     # Pin kernels
-    if c.confInt('main', 'pinkernels', default=0) is not 0:
+    if c.confInt('main', 'pinkernels', default=0) != 0:
         pinKernels(c, newKernels, newModules, installedModules)
 
     # Upgrade/Install kernel modules
