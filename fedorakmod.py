@@ -52,7 +52,8 @@ def _whatProvides(c, list):
 def _getKernelDeps(po, match):
       
     reqs = po.returnPrco(match)
-    return filter(lambda r: r[0] in kernelProvides, reqs)
+    return [ r[0] for r in reqs if r[0] in kernelProvides ]
+    #return filter(lambda r: r[0] in kernelProvides, reqs)
 
 
 def getInstalledKernels(c):
@@ -103,19 +104,6 @@ def resolveVersions(packageList):
     return dict
 
 
-def mapNameToKernel(packageDict):
-    # name -> (name, flag, (e,v,r)) where name is 'kernel-<arch>'
-    modnames = {}
-    for key in packageDict.keys():
-        kernelReqs = getKernelReqs(packageDict[key])
-        if modnames.has_key(key[0]):
-            modnames[key[0]].extend(kernelReq)
-        else:
-            modnames[key[0]] = kernelReqs
-
-    return modnames
-
-
 def installKernelModules(c, newModules, installedModules):
     """Figure out what special magic needs to be done to install/upgrade
        this kernel module.  This doesn't actually initiate an install
@@ -148,33 +136,15 @@ def pinKernels(c, newKernels, modules):
     """If we are using kernel modules, do not upgrade/install a new 
        kernel until matching modules are available."""
     
-    if len(newKernels) == 0:
-        return
+    table = resolveVersions(modules)
+    names = Set([po.name for po in modules if po.name not in locals()['_[1]']])
 
-    tsInfo = c.getTsInfo()
-
-    # (name, flag, (e,v,r)) where name is 'kernel-<arch>'
-    table = resolveVersions(newModules + installedModules)
-    names = [ po.name for po in modules if po.name not in locals()['_[1]'] ]
-
-    for kernel in newKernels.keys():
-        # Each kernel should only provide one kernel-<arch>
-        prov = getKernelProvides(newKernels[kernel])[0]
-
-# X: get list of kmods for this kernel
-# X: list = resolveVersions(newModules + installedModules)[prov]
-
-        for name in installedMap:
-            if prov in installedMap[name]:
-                # matching module already installed
-                continue
-            elif newMap.has_key(name) and prov in newMap[name]:
-                # matching module available
-                continue
-            else:
-                # No matching module for new kernel
-                c.info(2, "Removing kernel %s from install set" % str(kernel))
-                tsInfo.remove(kernel)
+    for kpo in newKernels:
+        prov = getKernelProvides(kpo)[0]
+        kmods = [po.name for po in table[prov]]
+        if Set(kmods) != names:
+            c.info(2, "Removing kernel %s from install set" % str(kernel))
+            c.getTsInfo().remove(kpo)
 
 
 def installAllKmods(c, avaModules, modules, kernels):
@@ -184,10 +154,11 @@ def installAllKmods(c, avaModules, modules, kernels):
             avaModules.remove(po)
 
     names = [ po.name for po in modules ]
-    interesting = filter(lambda p: p.name in names, avaModules)
+    interesting = [ po.name for po in avaModules if po.name in names ]
     table = resolveVersions(interesting + modules)
     
     for kernel in [ getKernelProvides(k)[0] for k in kernels ]:
+        if not table.has_key(kernel): continue
         for po in table[kernel]:
             if po not in modules:
                 c.getTsInfo().addTrueInstall(po)
