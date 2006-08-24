@@ -42,9 +42,11 @@ def _whatProvides(c, list):
     rpmdb = c.getRpmDB()
     for i in list:
         tuples = rpmdb.whatProvides(i, None, None)
-        for p in tuples:
-            hdr = rpmdb.returnHeaderByTuple(tuple)[0]
-            bag.append(packages.YumInstalledPackage(hdr))
+        for pkgtuple in tuples:
+            # XXX: what do we do for duplicate packages?
+            po = rpmdb.packagesByTuple(pkgtuple)[0]
+            #po = rpmdb.searchPkgTuple(pkgtuple)[0]
+            bag.append(po)
 
     return bag
 
@@ -113,7 +115,8 @@ def installKernelModules(c, newModules, installedModules):
 
     for modpo in newModules:
         c.info(4, "Installing kernel module: %s" % modpo.name)
-        te = tsInfo.getMembers(modpo.returnPackageTuple())
+        # Should only ever be 1 element to this list
+        te = tsInfo.getMembers(modpo.returnPackageTuple())[0] 
         tsCheck(te)
 
         kernelReqs = getKernelReqs(modpo)
