@@ -196,7 +196,6 @@ def postresolve_hook(c):
         if "kernel-modules" in te.po.getProvidesNames():
             newModules.append(te.po)
         if kernelProvides.intersection(te.po.getProvidesNames()) != Set([]):
-            # We have a kernel package
             newKernels.append(te.po)
 
     # Install modules for all kernels
@@ -204,7 +203,7 @@ def postresolve_hook(c):
         moreModules = installAllKmods(c, avaModules, 
                                       newModules + installedModules,
                                       newKernels + installedKernels)
-        newModules = newModules = moreModules
+        newModules = newModules + moreModules
 
     # Pin kernels
     if c.confInt('main', 'pinkernels', default=0) != 0:
