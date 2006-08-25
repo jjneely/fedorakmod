@@ -44,8 +44,8 @@ def _whatProvides(c, list):
         tuples = rpmdb.whatProvides(i, None, None)
         for pkgtuple in tuples:
             # XXX: what do we do for duplicate packages?
-            po = rpmdb.packagesByTuple(pkgtuple)[0]
-            #po = rpmdb.searchPkgTuple(pkgtuple)[0]
+            #po = rpmdb.packagesByTuple(pkgtuple)[0]
+            po = rpmdb.searchPkgTuple(pkgtuple)[0]
             bag.append(po)
 
     return bag
@@ -54,7 +54,7 @@ def _whatProvides(c, list):
 def _getKernelDeps(po, match):
       
     reqs = po.returnPrco(match)
-    return [ r[0] for r in reqs if r[0] in kernelProvides ]
+    return [ r for r in reqs if r[0] in kernelProvides ]
     #return filter(lambda r: r[0] in kernelProvides, reqs)
 
 
@@ -144,10 +144,14 @@ def pinKernels(c, newKernels, modules):
 
     for kpo in newKernels:
         prov = getKernelProvides(kpo)[0]
-        kmods = [po.name for po in table[prov]]
+        if table.has_key(prov):
+            kmods = [ po.name for po in table[prov] ]
+        else:
+            kmods = []
         if Set(kmods) != names:
-            c.info(2, "Removing kernel %s from install set" % str(kernel))
-            c.getTsInfo().remove(kpo)
+            c.info(2, "Removing kernel %s from install set" % str(prov))
+            # XXX: This wants a pkgtuple which will probably change RSN
+            c.getTsInfo().remove(kpo._pkgtup())
 
 
 def installAllKmods(c, avaModules, modules, kernels):
@@ -184,6 +188,8 @@ def init_hook(c):
     
 def postresolve_hook(c):
 
+    print "Running fedorakmod plugin..."
+
     avaModules = []
     newModules = []
     newKernels = []
@@ -210,7 +216,7 @@ def postresolve_hook(c):
 
     # Pin kernels
     if c.confInt('main', 'pinkernels', default=0) != 0:
-        pinKernels(c, newKernels, newModules, installedModules)
+        pinKernels(c, newKernels, newModules + installedModules)
 
     # Upgrade/Install kernel modules
     installKernelModules(c, newModules, installedModules)
