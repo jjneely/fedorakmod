@@ -23,7 +23,6 @@
 import os
 import rpmUtils
 from sets import Set
-from rpmUtils.miscutils import compareEVR
 from yum import packages
 from yum.constants import TS_INSTALL
 from yum.plugins import TYPE_CORE, PluginYumExit
@@ -125,7 +124,7 @@ def resolveVersions(packageList):
             dict[kernel] = [po]
         else:
             sameName = [ x for x in dict[kernel] if x.name == po.name ][0]
-            if compareEVR(sameName.returnEVR(), po.returnEVR()) < 0:
+            if packages.comparePoEVR(sameName, po) < 0:
                 dict[kernel].remove(sameName)
                 dict[kernel].append(po)
 
@@ -142,7 +141,7 @@ def installKernelModules(c, newModules, installedModules):
     for modpo in newModules:
         c.info(4, "Installing kernel module: %s" % modpo.name)
         # Should only ever be 1 element to this list
-        te = tsInfo.getMembers(modpo.returnPackageTuple())[0] 
+        te = tsInfo.getMembers(modpo.pkgtup)[0] 
         tsCheck(te)
 
         kernelReqs = getKernelReqs(modpo)
@@ -185,7 +184,7 @@ def pinKernels(c, newKernels, modules):
         if Set(kmods) != Set(names):
             c.info(2, "Removing kernel %s from install set" % str(prov))
             # XXX: This wants a pkgtuple which will probably change RSN
-            c.getTsInfo().remove(kpo._pkgtup())
+            c.getTsInfo().remove(kpo.pkgtup)
 
 
 def installAllKmods(c, avaModules, modules, kernels):
