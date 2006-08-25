@@ -20,9 +20,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
-from sets import Set
-
+import os
 import rpmUtils
+from sets import Set
 from rpmUtils.miscutils import compareEVR
 from yum import packages
 from yum.constants import TS_INSTALL
@@ -33,6 +33,22 @@ plugin_type = (TYPE_CORE,)
 
 kernelProvides = Set([ "kernel-%s" % a for a in rpmUtils.arch.arches.keys() ])
         
+def getRunningKernel():
+    # Taken from the installonlyn.py plugin writen by Jeremy Katz
+    # Copyright 2005  Red Hat, Inc. 
+    # Modified by Jack Neely to return a kernel provides tuple
+    """This takes the output of uname and figures out the (version, release)
+    tuple for the running kernel."""
+    ver = os.uname()[2]
+    for s in ("bigmem", "enterprise", "smp", "hugemem", "PAE",
+              "guest", "hypervisor", "xen0", "xenU", "xen"):
+        if ver.endswith(s):
+            ver = ver.replace(s, "")
+    if ver.find("-") != -1:
+        (v, r) = ver.split("-", 1)
+        # XXX: Gah, this assumes epoch
+        return ('kernel-%s' % os.uname()[4], 'EQ', ('0', v, r))
+    return None
 
 def _whatProvides(c, list):
     """Return a list of POs of installed kernels."""
@@ -95,6 +111,16 @@ def resolveVersions(packageList):
             print "Bad kmod package: May only require one kernel"
             continue
 
+        # Figure out the real name of this kmod
+        name = []
+        for r in po.returnPrco("provides"):
+            if r[0].endswith('-kmod'):
+                name.append(r[0])
+        if len(name) != 1:
+            print "Non compliant kmod package: %s" % po
+            continue
+        po.kmodName = name[0]
+
         if not dict.has_key(kernel):
             dict[kernel] = [po]
         else:
@@ -139,16 +165,24 @@ def pinKernels(c, newKernels, modules):
     """If we are using kernel modules, do not upgrade/install a new 
        kernel until matching modules are available."""
     
-    table = resolveVersions(modules)
-    names = Set([po.name for po in modules if po.name not in locals()['_[1]']])
+    runningKernel = getRunningKernel()
+    if runningKernel == None:
+        c.error(2, "Could not parsing running kernel version.")
+        return
 
+    table = resolveVersions(modules)
+    if not table.has_key(runningKernel):
+        # The current kernel has no modules installed
+        return
+        
+    names = [ p.kmodName for p in table[runningKernel] ]
     for kpo in newKernels:
         prov = getKernelProvides(kpo)[0]
         if table.has_key(prov):
-            kmods = [ po.name for po in table[prov] ]
+            kmods = [ po.kmodName for po in table[prov] ]
         else:
             kmods = []
-        if Set(kmods) != names:
+        if Set(kmods) != Set(names):
             c.info(2, "Removing kernel %s from install set" % str(prov))
             # XXX: This wants a pkgtuple which will probably change RSN
             c.getTsInfo().remove(kpo._pkgtup())
