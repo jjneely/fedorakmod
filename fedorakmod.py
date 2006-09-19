@@ -187,14 +187,26 @@ def pinKernels(c, newKernels, modules):
             c.getTsInfo().remove(kpo.pkgtup)
 
 
+# There is a Yum bug that prevents this from working propperly.
+# c.getRepos().getPackageSack().searchProvides("kernel-modules") does not
+# return packages with fully popluated Provides information
 def installAllKmods(c, avaModules, modules, kernels):
     list = []
-    for po in avaModules:
-        if po.returnPackageTuple() in [m.returnPackageTuple() for m in modules]:
-            avaModules.remove(po)
+    names = []
+    interesting = []
 
-    names = [ po.name for po in modules ]
-    interesting = [ po.name for po in avaModules if po.name in names ]
+    rModules = resolveVersions(modules)
+    for group in rModules.values():
+        for po in group:
+            if po.kmodName not in names:
+                names.append(po.kmodName)
+
+    rAvaModules = resolveVersions(avaModules)
+    for group in rAvaModules.values():
+        for po in group:
+            if po.kmodName in names:
+                interesting.append(po)
+
     table = resolveVersions(interesting + modules)
     
     for kernel in [ getKernelProvides(k)[0] for k in kernels ]:
@@ -221,9 +233,7 @@ def init_hook(c):
     
 def postresolve_hook(c):
 
-    print "Running fedorakmod plugin..."
-
-    avaModules = []
+    avaModules = c.getRepos().getPackageSack().searchProvides("kernel-modules")
     newModules = []
     newKernels = []
 
@@ -231,24 +241,28 @@ def postresolve_hook(c):
     installedModules = getInstalledModules(c)
 
     for te in c.getTsInfo().getMembers():
-        if te.ts_state == 'a' and "kernel-modules" in te.po.getProvidesNames():
-            avaModules.append(te.po)
         if te.ts_state not in ('i', 'u'):
             continue
-        if "kernel-modules" in te.po.getProvidesNames():
+        if "kernel-modules" in te.po.provides_names:
             newModules.append(te.po)
-        if kernelProvides.intersection(te.po.getProvidesNames()) != Set([]):
+            for po in avaModules:
+                if te.po.pkgtup == po.pkgtup:
+                    avaModules.remove(po)
+        if kernelProvides.intersection(te.po.provides_names) != Set([]):
             newKernels.append(te.po)
 
     # Install modules for all kernels
     if c.confInt('main', 'installforallkernels', default=1) != 0:
-        moreModules = installAllKmods(c, avaModules, 
-                                      newModules + installedModules,
-                                      newKernels + installedKernels)
-        newModules = newModules + moreModules
+        #print "Running installAllKmods()"
+        #moreModules = installAllKmods(c, avaModules, 
+        #                              newModules + installedModules,
+        #                              newKernels + installedKernels)
+        #newModules = newModules + moreModules
+        pass
 
     # Pin kernels
     if c.confInt('main', 'pinkernels', default=0) != 0:
+        #print "Running pin kernels..."
         pinKernels(c, newKernels, newModules + installedModules)
 
     # Upgrade/Install kernel modules
