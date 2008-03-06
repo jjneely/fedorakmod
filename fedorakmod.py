@@ -26,6 +26,7 @@ from sets import Set
 from yum import packages
 from yum.constants import TS_INSTALL
 from yum.plugins import TYPE_CORE, PluginYumExit
+from rpm import RPMPROB_FILTER_OLDPACKAGE
 
 requires_api_version = '2.4'
 plugin_type = (TYPE_CORE,)
@@ -182,7 +183,7 @@ def installKernelModules(c, newModules, installedModules):
                            (po, modpo))
                     break
 
-def pinKernels(c, newKernels, modules):
+def pinKernels(c, newKernels, installedKernels, modules):
     """If we are using kernel modules, do not upgrade/install a new 
        kernel until matching modules are available."""
     
@@ -192,11 +193,27 @@ def pinKernels(c, newKernels, modules):
         return
 
     table = resolveVersions(modules)
+    print table
     if not table.has_key(runningKernel):
-        # The current kernel has no modules installed
-        return
+        iKernels = [ (p.name, 'EQ', (p.epoch, p.version, p.release)) \
+                    for p in installedKernels ]
+        if runningKernel not in iKernels and len(installedKernels) > 0:
+            # We have no knowledge of the running kernel -- its not installed
+            # perhaps this is the anaconda %post environment or somebody
+            # rpm -e'd the currently running kernel.  Choose a reasonable
+            # kernel to go with.  IE, the greatest EVR we see.
+            runningKernel = installedKernels[0]
+            for i in range(len(iKernels) - 1):
+                k = packages.comparePoEVR(runningKernel, installedKernels[i+1])
+                if k < 0:
+                    runningKernel = installedKernels[i+1]
+        else:
+            # The running kernel is installed and has no kmods installed with it
+            c.info(2, "The current kernel has no modules installed")
+            return
         
     names = [ p.kmodName for p in table[runningKernel] ]
+    print "kmods in kernel %s: %s" % (str(runningKernel), str(names))
     for kpo in newKernels:
         prov = getKernelProvides(kpo)[0]
         if table.has_key(prov):
@@ -224,6 +241,15 @@ def installAllKmods(c, avaModules, modules, kernels):
         for po in group:
             if po.kmodName in names:
                 interesting.append(po)
+
+    # If We have stuff in the interesting list its most likely a kmod for
+    # an older kernel and therefore will have a VR < a VR of a kmod that
+    # may already be installed.  RPM doesn't like installing packages
+    # older than what's already installed.  Tell it to shutup.
+    # XXX: If we thought hard enough we could do this more exactly.
+    if len(interesting) > 0:
+        tsInfo = c.getTsInfo()
+        tsInfo.probFilterFlags.append(RPMPROB_FILTER_OLDPACKAGE)
 
     table = resolveVersions(interesting + modules)
     
@@ -275,7 +301,8 @@ def postresolve_hook(c):
 
     # Pin kernels
     if c.confInt('main', 'pinkernels', default=0) != 0:
-        pinKernels(c, newKernels, newModules + installedModules)
+        pinKernels(c, newKernels, installedKernels, 
+                   newModules + installedModules)
 
     # Upgrade/Install kernel modules
     installKernelModules(c, newModules, installedModules)
