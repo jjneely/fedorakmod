@@ -44,9 +44,9 @@ def getRunningKernel():
     """This takes the output of uname and figures out the (version, release)
     tuple for the running kernel."""
     ver = os.uname()[2]
-    for s in kernelVariants:
-        if ver.endswith(s):
-            ver = ver.replace(s, "")
+    #for s in kernelVariants:
+    #    if ver.endswith(s):
+    #        ver = ver.replace(s, "")
     if ver.find("-") != -1:
         (v, r) = ver.split("-", 1)
         # XXX: Gah, this assumes epoch
@@ -192,37 +192,32 @@ def pinKernels(c, newKernels, installedKernels, modules):
         c.error(2, "Could not parsing running kernel version.")
         return
 
-    table = resolveVersions(modules)
+    iKernels = [ getKernelProvides(p)[0] for p in installedKernels ]
+    print "Installed Kernels: %s" % str(iKernels)
     print "Running Kernel: %s" % str(runningKernel)
-    print "Module Versions Table: %s" % str(table)
-    if not table.has_key(runningKernel):
-        iKernels = [ (p.name, 'EQ', (p.epoch, p.version, p.release)) \
-                    for p in installedKernels ]
-        if runningKernel not in iKernels:
-            # We have no knowledge of the running kernel -- its not installed
-            # perhaps this is the anaconda %post environment or somebody
-            # rpm -e'd the currently running kernel.  Choose a reasonable
-            # kernel to go with.  IE, the greatest EVR we see.
-            topkpo = None
-            for p in installedKernels:
-                if topkpo == None or packages.comparePoEVR(topkpo, p) < 0:
-                    topkpo = p
-            runningKernel = ('kernel-%s' % topkpo.arch, 'EQ', \
-                             (topkpo.epoch, topkpo.version, topkpo.release))
-        else:
-            # The running kernel is installed and has no kmods installed with it
-            c.info(2, "The current running kernel has no modules installed")
-            return
+    if runningKernel not in iKernels:
+        # We have no knowledge of the running kernel -- its not installed
+        # perhaps this is the anaconda %post environment or somebody
+        # rpm -e'd the currently running kernel.  Choose a reasonable
+        # kernel to go with.  IE, the greatest EVR we see.
+        topkpo = None
+        for p in installedKernels:
+            if topkpo == None or packages.comparePoEVR(topkpo, p) < 0:
+                topkpo = p
+        runningKernel = getKernelProvides(topkpo)[0]
 
+    table = resolveVersions(modules)
+    print "Module Table: %s" % str(table)
     if not table.has_key(runningKernel):
         c.info(2, "Trying to mimic %s which has no kernel modules installed" \
                % str(runningKernel))
         return
         
     names = [ p.kmodName for p in table[runningKernel] ]
-    print "kmods in kernel %s: %s" % (str(runningKernel), str(names))
+    print "kmods in %s: %s" % (str(runningKernel), str(names))
     for kpo in newKernels:
         prov = getKernelProvides(kpo)[0]
+        print "Looking for modules matching kernel provide: %s" % str(prov)
         if table.has_key(prov):
             kmods = [ po.kmodName for po in table[prov] ]
         else:
