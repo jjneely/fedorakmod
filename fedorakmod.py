@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
-# fedorakmod.py - Fedora Extras Yum Kernel Module Support
-# Copyright 2006 - 2007 NC State University
+# fedorakmod.py - Fedora Kmod -- Yum Kernel Module Support
+# Copyright 2006 - 2008 NC State University
 # Written by Jack Neely <jjneely@ncsu.edu>
 #
 # SDG
@@ -193,8 +193,6 @@ def pinKernels(c, newKernels, installedKernels, modules):
         return
 
     iKernels = [ getKernelProvides(p)[0] for p in installedKernels ]
-    print "Installed Kernels: %s" % str(iKernels)
-    print "Running Kernel: %s" % str(runningKernel)
     if runningKernel not in iKernels:
         # We have no knowledge of the running kernel -- its not installed
         # perhaps this is the anaconda %post environment or somebody
@@ -205,19 +203,19 @@ def pinKernels(c, newKernels, installedKernels, modules):
             if topkpo == None or packages.comparePoEVR(topkpo, p) < 0:
                 topkpo = p
         runningKernel = getKernelProvides(topkpo)[0]
+        c.info(2, "Unknown running kernel.  Using %s instead." % \
+               str(runningKernel))
 
     table = resolveVersions(modules)
-    print "Module Table: %s" % str(table)
     if not table.has_key(runningKernel):
         c.info(2, "Trying to mimic %s which has no kernel modules installed" \
                % str(runningKernel))
         return
         
     names = [ p.kmodName for p in table[runningKernel] ]
-    print "kmods in %s: %s" % (str(runningKernel), str(names))
+    c.info(2, "kmods in %s: %s" % (str(runningKernel), str(names)))
     for kpo in newKernels:
         prov = getKernelProvides(kpo)[0]
-        print "Looking for modules matching kernel provide: %s" % str(prov)
         if table.has_key(prov):
             kmods = [ po.kmodName for po in table[prov] ]
         else:
