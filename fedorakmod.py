@@ -189,7 +189,7 @@ def pinKernels(c, newKernels, installedKernels, modules):
     
     runningKernel = getRunningKernel()
     if runningKernel == None:
-        c.error(2, "Could not parsing running kernel version.")
+        c.error(2, "Could not parse running kernel version.")
         return
 
     iKernels = [ getKernelProvides(p)[0] for p in installedKernels ]
