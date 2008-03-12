@@ -200,7 +200,7 @@ def pinKernels(c, newKernels, installedKernels, modules):
         # kernel to go with.  IE, the greatest EVR we see.
         topkpo = None
         for p in installedKernels:
-            if topkpo == None or packages.comparePoEVR(topkpo, p) < 0:
+            if topkpo is None or packages.comparePoEVR(topkpo, p) < 0:
                 topkpo = p
         runningKernel = getKernelProvides(topkpo)[0]
         c.info(2, "Unknown running kernel.  Using %s instead." % \
