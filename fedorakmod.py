@@ -286,6 +286,7 @@ def postresolve_hook(c):
         if te.ts_state == 'e' and isKernel:
             # If a kernel is set to be erased then we don't want to
             # consider it in our dep checking.
+            print "Excluding to be erased: " + str(po.pkgtup)
             installedKernel.remove(te.po)
         if te.ts_state not in ('i', 'u'):
             continue
