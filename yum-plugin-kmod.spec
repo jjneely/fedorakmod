@@ -8,7 +8,7 @@ License:        GPLv2+
 URL:            http://linuxczar.net/wordpress/projects/fedorakmod
 Source0:        fedorakmod-%{version}.tar.bz2
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-
+BuildArch:      noarch
 Requires:       yum
 
 %description
