@@ -24,12 +24,7 @@ A Yum plugin to support the Fedora Kmod kernel module packaging standard.
 
 %install
 rm -rf $RPM_BUILD_ROOT
-
-install -m 755 -d %{buildroot}%{_libdir}/yum-plugins
-install -m 755 -d %{buildroot}%{_sysconfdir}/yum/pluginconf.d
-
-install -m 644 fedorakmod.py   %{buildroot}%{_libdir}/yum-plugins/
-install -m 644 fedorakmod.conf %{buildroot}%{_sysconfdir}/yum/pluginconf.d/
+make install DESTDIR=$RPM_BUILD_ROOT
 
 
 %clean
