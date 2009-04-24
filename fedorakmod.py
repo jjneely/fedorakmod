@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 # fedorakmod.py - Fedora Kmod -- Yum Kernel Module Support
-# Copyright 2006 - 2008 NC State University
+# Copyright 2006 - 2009 NC State University
 # Written by Jack Neely <jjneely@ncsu.edu>
 #
 # SDG
@@ -179,11 +179,11 @@ def installKernelModules(c, newModules, installedModules):
                     # same kernel as an already installed moulde of the
                     # same name.  "Upgrade" this module instead of install.
                     tsInfo.addErase(po)
-                    c.info(2, 'Removing kernel module %s upgraded to %s' %
+                    c.info(2, 'Removing kernel module %s => upgraded to %s' %
                            (po, modpo))
                     break
 
-def pinKernels(c, newKernels, installedKernels, modules):
+def pinKernels(c, newKernels, installedKernels, newModules, installedModules):
     """If we are using kernel modules, do not upgrade/install a new 
        kernel until matching modules are available."""
     
@@ -206,7 +206,7 @@ def pinKernels(c, newKernels, installedKernels, modules):
         c.info(2, "Unknown running kernel.  Using %s instead." % \
                str(runningKernel))
 
-    table = resolveVersions(modules)
+    table = resolveVersions(newModules + installedModules)
     if not table.has_key(runningKernel):
         c.info(2, "Trying to mimic %s which has no kernel modules installed" \
                % str(runningKernel))
@@ -224,6 +224,16 @@ def pinKernels(c, newKernels, installedKernels, modules):
             c.info(2, "Removing kernel %s from install set" % str(prov))
             # XXX: This wants a pkgtuple which will probably change RSN
             c.getTsInfo().remove(kpo.pkgtup)
+
+            # Now clean up any kmods in the transaction
+            for po in table[prov]:
+                if po in newModules:
+                    c.info(2, "Removing kmod %s from install set" \
+                              % str(po))
+                    c.getTsInfo().remove(po.pkgtup)
+                    newModules.remove(po)
+
+    return newModules
 
 def installAllKmods(c, avaModules, modules, kernels):
     list = []
@@ -307,8 +317,8 @@ def postresolve_hook(c):
 
     # Pin kernels
     if c.confInt('main', 'pinkernels', default=0) != 0:
-        pinKernels(c, newKernels, installedKernels, 
-                   newModules + installedModules)
+        newModules = pinKernels(c, newKernels, installedKernels, 
+                                newModules, installedModules)
 
     # Upgrade/Install kernel modules
     installKernelModules(c, newModules, installedModules)
