@@ -35,7 +35,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-,root,root,-)
 %doc README
 %{_sysconfdir}/yum/pluginconf.d/*
-%{_libdir}/yum-plugins/*
+/usr/lib/yum-plugins/*
 
 
 %changelog
