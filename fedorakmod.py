@@ -262,11 +262,12 @@ def installAllKmods(c, avaModules, modules, kernels):
         tsInfo.probFilterFlags.append(RPMPROB_FILTER_OLDPACKAGE)
 
     table = resolveVersions(interesting + modules)
+    modulestup = [ po.pkgtup for po in modules ]
     
     for kernel in [ getKernelProvides(k)[0] for k in kernels ]:
         if not table.has_key(kernel): continue
         for po in table[kernel]:
-            if po not in modules:
+            if po.pkgtup not in modulestup:
                 c.getTsInfo().addTrueInstall(po)
                 list.append(po)
 
