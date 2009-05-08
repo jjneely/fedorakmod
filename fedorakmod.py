@@ -226,6 +226,7 @@ def pinKernels(c, newKernels, installedKernels, newModules, installedModules):
             c.getTsInfo().remove(kpo.pkgtup)
 
             # Now clean up any kmods in the transaction
+            if prov not in table: continue
             for po in table[prov]:
                 if po in newModules:
                     c.info(2, "Removing kmod %s from install set" \
