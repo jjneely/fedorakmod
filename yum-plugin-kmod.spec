@@ -1,5 +1,5 @@
 Name:           yum-plugin-kmod
-Version: 1.0.0
+Version: 1.0.1
 Release:        1%{?dist}
 Summary:        Yum plugin support for kmod kernel modules
 
@@ -36,9 +36,14 @@ rm -rf $RPM_BUILD_ROOT
 %doc README
 %{_sysconfdir}/yum/pluginconf.d/*
 /usr/lib/yum-plugins/*
+/usr/share/fedorakmod/*
 
 
 %changelog
+* Tue Jun 09 2009 Jack Neely <jjneely@ncsu.edu> 1.0.1-1
+- Include the kmodtool script used by kmod packages with changes needed
+  by fedora 10/11
+
 * Fri Apr 24 2009 Jack Neely <jjneely@ncsu.edu> 1.0.0-1
 - Initial repackaging after removal from yum-utils
 

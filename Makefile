@@ -1,4 +1,4 @@
-VERSION=1.0.0
+VERSION=1.0.1
 NAME=fedorakmod
 SPEC=yum-plugin-kmod.spec
 
@@ -20,10 +20,12 @@ all:
 
 install:
 	install -m 755 -d $(DESTDIR)/usr/lib/yum-plugins
+	install -m 755 -d $(DESTDIR)/usr/share/fedorakmod
 	install -m 755 -d $(DESTDIR)/etc/yum/pluginconf.d
 	
 	install -m 644 fedorakmod.py   $(DESTDIR)/usr/lib/yum-plugins/
 	install -m 644 fedorakmod.conf $(DESTDIR)/etc/yum/pluginconf.d/
+	install -m 644 kmodtool        $(DESTDIR)/usr/share/fedorakmod/
 
 srpm: archive
 	rpmbuild --define "_srcrpmdir ." -ts $(NAME)-$(VERSION).tar.bz2
